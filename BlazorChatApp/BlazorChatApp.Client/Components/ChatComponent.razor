@@ -1,0 +1,85 @@
+﻿@if (ToUser is not null && ConnectedUsers is not null && ConnectedUsers.Count > 0)
+{
+    <div class="card chat-card">
+         <div class="card-header chat-header">
+             Chatting with @ToUser.UserName
+         </div>
+         <div class="overflow-auto chat-messages">
+             <ul class="list-group">
+                 @foreach(var message in ToUser.Messages)
+                {
+                    var fromUserName = ConnectedUsers.FirstOrDefault(u => u.UserId == message.FromUserId)?.UserName;
+                    <li class="list-group-item d-flex align-items-start message-item">
+                        <img src="/Images/avatar.png" alt="avatar" class="rounded-circle me-3"
+                        style="width: 40px; height:40px"/>
+                        <div>
+                            <b>@fromUserName</b>
+                            <br />
+                            @message.Message
+                        </div>
+                    </li>
+                }
+            </ul>
+         </div>
+         <div class="card-footer chat-footer">
+             <div class="d-flex w-100">
+                 <input type="text" 
+                     class="form-control me-2"
+                     placeholder="Type Your Message Here..."
+                       @bind="newMessage"
+                       @bind:event="oninput"
+                       @onkeydown="HandleKeyPress" />
+                 <button class="btn btn-primary ms-2" @onclick="SendMessage">Send</button>
+             </div>
+
+         </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? FromUserId { get; set; }
+
+    [Parameter]
+    public ConnectedUser? ToUser { get; set; }
+
+    [Parameter]
+    public List<ConnectedUser>? ConnectedUsers { get; set; }
+
+    [Parameter]
+    public HubConnection? hubConnection { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnMessageSent { get; set; }
+
+
+    private string newMessage = string.Empty;
+    private async Task SendMessage()
+    {
+        if (hubConnection is not null &&
+            ToUser is not null &&
+            !string.IsNullOrWhiteSpace(newMessage))
+        {
+            //Send Message to Server
+            await hubConnection.InvokeAsync("ForwardMessage", this.FromUserId, ToUser.ConnectionId, newMessage);
+
+            ToUser.Messages.Add(new ChatMessage
+                {
+                    FromUserId = this.FromUserId,
+                    ToUserId = ToUser.UserId,
+                    Message = newMessage
+                });
+            newMessage = string.Empty;
+            await OnMessageSent.InvokeAsync(ToUser.UserId); // Notify parent component that a message has been sent
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key =="Enter")
+        {
+            await SendMessage();
+        }
+    }
+
+}

@@ -1,0 +1,60 @@
+﻿@using ChatContractsLibrary
+@if (ConnectedUsers is not null && ConnectedUsers.Count > 0)
+{
+    @foreach (var user in ConnectedUsers)
+    {
+        @if(user.UserId != this.LogonUserId)
+        {
+            var unreadMessages = user.Messages.Count(m => m.Unread == true &&
+            m.FromUserId != this.LogonUserId);
+
+            <tr style="cursor: pointer; height: 30px"
+                @key="user.ConnectionId"
+                @onclick="async () => await SelectUser(user.ConnectionId!)">
+                <td>@user.UserName</td>
+                <td>
+                    @if (unreadMessages > 0)
+                    {
+                        <div class="unread-indicator">
+                            @unreadMessages
+                        </div>
+                    }
+            )
+                </td>
+            </tr>
+        }
+    }
+}
+else
+{
+    <p>No users connected.</p>
+}
+
+@code{
+    [Parameter]
+    public List<ConnectedUser>? ConnectedUsers { get; set; }
+    [Parameter]
+    public string? LogonUserId { get; set; }
+
+    [Parameter]
+    public EventCallback<ConnectedUser> OnUserSelected { get; set; }
+    public void ClearUnreadMessagCount (string userId)
+    {
+        this.ConnectedUsers?.FirstOrDefault(u => u.UserId == userId)?
+        .Messages.ForEach(m => m.Unread = false);
+
+        StateHasChanged();
+    }
+
+    private async Task SelectUser(string? connectionId)
+    {
+        var targetUser = ConnectedUsers?.FirstOrDefault(u => u.ConnectionId == connectionId);
+        // Additional logic can be added here as needed
+        if(targetUser is not null)
+        {
+            targetUser.Messages.ForEach(m => m.Unread = false); // Mark messages as read when user is selected
+            await OnUserSelected.InvokeAsync(targetUser);
+        }
+    }
+
+}

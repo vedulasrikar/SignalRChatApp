@@ -1,0 +1,46 @@
+﻿@using System.ComponentModel.DataAnnotations
+
+<h3>Enter Your Info</h3>
+
+@if (userInfo is not null)
+{
+    <EditForm Model="userInfo" OnValidSubmit="SaveUserInfo">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="row mb-3">
+            <div class="col-2">
+            <label for="userName" class="col-form-label">User Name</label>
+            </div>
+            <div class="col-6">
+            <InputText id="userName" class="form-control" @bind-Value="userInfo.UserName" />
+            <ValidationMessage For="@(() => userInfo.UserName)" />
+            </div>
+        </div>
+         <div class="row mb-3">
+             <div class="col-2">
+        <button type="submit" class="btn btn-primary">Submit</button>   
+            </div>
+        <div class="col-6">
+
+        </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+
+    private UserInfo userInfo = new UserInfo();
+    [Parameter]
+    public EventCallback<string> OnUserInfoSaved { get; set; }
+
+    private async Task SaveUserInfo()
+    {
+        await OnUserInfoSaved.InvokeAsync(userInfo.UserName);
+    }
+    class UserInfo
+    {
+        [Required]
+        public string? UserName { get; set; }
+
+    }
+}

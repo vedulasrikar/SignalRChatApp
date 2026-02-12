@@ -1,0 +1,148 @@
+﻿@page "/"
+@using ChatContractsLibrary
+
+@inject IJSRuntime JSRuntime
+
+
+<PageTitle>ChatApp</PageTitle>
+
+@if (string.IsNullOrWhiteSpace(userName))
+{
+    <UserInfoCollectionComponent OnUserInfoSaved="OnUserInfoProvided"></UserInfoCollectionComponent>
+}
+else
+{
+    <div class="row">
+        <div class="col-9">
+            <ChatComponent FromUserId="@this.userId"
+                           ToUser="targetUser"
+                           ConnectedUsers="@this.connectedUsers"
+                           hubConnection="@this.hubConnection"
+                           OnMessageSent="OnMessageSent">
+            </ChatComponent>
+            @if (systemMessages is not null && systemMessages.Count > 0)
+            {
+                <ul>
+                    @foreach (var message in systemMessages)
+                    {
+                        <li>@message</li>
+                    }
+                </ul>
+            }
+        </div>
+        <div class="col-3">
+            <table style="width:100%">
+                <ConnectedUsersComponent @ref="connectedUsersComponent"
+                    ConnectedUsers="this.connectedUsers"
+                                         LogonUserId="@this.userId"
+                                         OnUserSelected="OnUserSelected">
+                </ConnectedUsersComponent>
+            </table>
+        </div>
+       
+    </div>
+}
+
+@code{
+
+    private string userName = string.Empty;
+    private string userId = string.Empty;
+    private List<ConnectedUser> connectedUsers = new List<ConnectedUser>(); 
+    private List<string> systemMessages = new List<string>();
+    private HubConnection? hubConnection;
+    private ConnectedUser? targetUser;
+
+    ConnectedUsersComponent? connectedUsersComponent; // Reference to the ConnectedUsersComponent to call ClearUnreadMessageCount
+
+    private async Task OnUserInfoProvided(string userName)
+    {
+
+        this.userName = userName;
+        this.userId = Guid.NewGuid().ToString();
+
+        await ConnectToServer(userId, userName);
+
+    }
+    private void OnUserSelected(ConnectedUser toUser)
+    {
+        this.targetUser = toUser;
+    }
+    private void OnMessageSent(string toUserId)
+    {
+        // Clear unread message count for the selected user
+        connectedUsersComponent?.ClearUnreadMessagCount(toUserId);  
+    }
+
+
+    private  async Task ConnectToServer(string userId, string userName)
+    {
+        this.hubConnection = new HubConnectionBuilder().WithUrl($"https://localhost:7070/chathub?userid={userId}&username={userName}").Build();
+
+        hubConnection.On<string>("ReceiveSystemMessage", ReceiveSystemMessage);
+        hubConnection.On<List<ConnectedUser>>("UpdateUserList", UpdateUserList);
+        hubConnection.On<string, string, string>("ReceiveMessage", ReceiveMessage);
+
+        await hubConnection.StartAsync();
+    }
+
+
+
+
+    private void ReceiveSystemMessage(string message)
+    {
+        if(!string.IsNullOrWhiteSpace(message))
+        {
+            systemMessages.Add(message);
+            StateHasChanged();
+        }
+
+    }
+
+    private void UpdateUserList(List<ConnectedUser> users)
+    {
+        // This method can be used to update the list of connected users if needed
+        if (users is not null && users.Count > 0)
+        {
+            var existingUsersDictionary = connectedUsers.ToDictionary(u => u.ConnectionId?? string.Empty);
+            //Add new users
+            foreach (var user in users)
+            {
+                if (!existingUsersDictionary.ContainsKey(user.ConnectionId ?? string.Empty))
+                {
+                    connectedUsers.Add(user); 
+                }
+
+            }
+
+            // Keep only the users that are still connected
+            connectedUsers = connectedUsers
+            .Where(u => users.Any(newUser => newUser.ConnectionId == u.ConnectionId)).ToList();
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task ReceiveMessage(string fromUserId, string fromConnectionId, string message)
+    {
+        // This method can be used to receive messages from other users if needed
+        if(!string.IsNullOrEmpty(fromConnectionId))   
+        {
+            // Handle the received message and update the UI accordingly
+            var fromUser = connectedUsers.FirstOrDefault(u => u.ConnectionId == fromConnectionId);
+            if(fromUser is not null)
+            {
+                // Add the message to the chat history of the corresponding user
+                fromUser.Messages.Add(new ChatMessage
+                {
+                    FromUserId = fromUserId,
+                    ToUserId = this.userId,
+                    Message = message
+                });
+                await JSRuntime.InvokeVoidAsync("playsound", "/sounds/notification.mp3"); // Play notification sound for incoming message
+                // Update the UI to reflect the new message
+                StateHasChanged();
+            }
+            StateHasChanged();
+        }
+    }
+}
