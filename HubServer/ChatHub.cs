@@ -7,9 +7,10 @@ namespace HubServer
     {
         private static readonly object _lockUsers = new object();
         private static List<ConnectedUser> _connectedUsers = new List<ConnectedUser>();
+        private static List<ChatMessage> _messageHistory = new List<ChatMessage>();
+
         public override async Task OnConnectedAsync()
         {
-
             var userId = string.Empty;
             var userName = string.Empty;
 
@@ -27,8 +28,9 @@ namespace HubServer
             }
 
             await Clients.Caller.ReceiveSystemMessage($"Hi {userName}, you have just connected.");
-            await Clients.All.UpdateUserList(_connectedUsers);
 
+            // Send tailored user lists (with message history) to all connected clients
+            await SendUpdatedUserListsToAll();
         }
 
         public override async Task OnDisconnectedAsync(Exception? exception)
@@ -45,7 +47,7 @@ namespace HubServer
             if (user != null)
             {
                 //Update the clients about the user list change
-                await Clients.All.UpdateUserList(_connectedUsers);
+                await SendUpdatedUserListsToAll();
             }
             await base.OnDisconnectedAsync(exception);
         }
@@ -54,7 +56,69 @@ namespace HubServer
         {
             if (!string.IsNullOrWhiteSpace(toConnectionId))
             {
+                // find recipient user id
+                var toUserId = _connectedUsers.FirstOrDefault(u => u.ConnectionId == toConnectionId)?.UserId;
+
+                // Save message to history
+                var chatMessage = new ChatMessage
+                {
+                    FromUserId = fromUserId,
+                    ToUserId = toUserId,
+                    Message = message,
+                    Unread = true
+                };
+
+                lock (_lockUsers)
+                {
+                    _messageHistory.Add(chatMessage);
+                }
+
+                // Forward message to recipient
                 await Clients.Client(toConnectionId).ReceiveMessage(fromUserId, Context.ConnectionId, message);
+
+                // Update message lists for all clients (so reconnecting clients get history)
+                await SendUpdatedUserListsToAll();
+            }
+        }
+
+        private async Task SendUpdatedUserListsToAll()
+        {
+            // For each connected user, build a tailored list where each ConnectedUser.Messages contains
+            // messages between that connected user and the current caller (so the client can show conversation history)
+            List<ConnectedUser> snapshot;
+            lock (_lockUsers)
+            {
+                snapshot = _connectedUsers.Select(u => new ConnectedUser
+                {
+                    UserId = u.UserId,
+                    UserName = u.UserName,
+                    ConnectionId = u.ConnectionId
+                }).ToList();
+            }
+
+            // Send tailored lists to each client individually
+            foreach (var target in snapshot)
+            {
+                // Build list for this target client
+                var tailored = snapshot.Select(u => new ConnectedUser
+                {
+                    UserId = u.UserId,
+                    UserName = u.UserName,
+                    ConnectionId = u.ConnectionId,
+                    Messages = _messageHistory
+                        .Where(m =>
+                            // include messages where either side is the target client and the other side is the listed user
+                            ((m.FromUserId == u.UserId && m.ToUserId == target.UserId) ||
+                             (m.FromUserId == target.UserId && m.ToUserId == u.UserId))
+                        )
+                        .ToList()
+                }).ToList();
+
+                // Send to the specific client connection id
+                if (!string.IsNullOrEmpty(target.ConnectionId))
+                {
+                    await Clients.Client(target.ConnectionId).UpdateUserList(tailored);
+                }
             }
         }
     }

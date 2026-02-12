@@ -1,6 +1,114 @@
-.message-item {
-    background-color: skyblue;
-    border-radius: 5px;
-    margin-bottom: 5px;
-    padding: 5px;
+/* Chat card overall */
+.chat-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Header */
+.chat-card .chat-header {
+    font-weight: 600;
+    background: #f8f9fa;
+}
+
+/* Messages container: scrollable */
+.chat-card .chat-messages {
+    padding: 8px 12px;
+    overflow-y: auto;
+    max-height: 360px; /* adjust as needed */
+}
+
+/* Reset list defaults inside the chat to avoid bootstrap interference */
+.chat-card .messages-list {
+    padding-left: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.chat-card .messages-list li {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+/* Each message row */
+.chat-card .message-row {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%; /* ensure row stretches full width so justify-content works */
+}
+
+/* Avatar */
+.chat-card .avatar {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+}
+
+/* Bubble styling */
+.chat-card .bubble {
+    border-radius: 10px;
+    padding: 10px 12px;
+    max-width: 75%;
+    word-wrap: break-word;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: background-color .15s ease, transform .08s ease;
+}
+
+/* Receiver (other user) - sky blue */
+.chat-card .message-row.receiver {
+    justify-content: flex-start;
+    /* avatar left by default */
+}
+.chat-card .message-row.receiver .bubble {
+    background-color: #bfe9f5; /* soft sky blue */
+    color: #000;
+}
+
+/* Sender (current user) - light green, avatar on right */
+.chat-card .message-row.sender {
+    justify-content: flex-end; /* align content to right */
+}
+
+/* Place avatar after bubble for sender using order */
+.chat-card .message-row.sender .bubble {
+    order: 1;
+    margin-right: 8px; /* space between bubble and avatar */
+    background-color: #d9f2d9; /* light green */
+    color: #000;
+}
+.chat-card .message-row.sender .avatar {
+    order: 2;
+    margin-left: 0;
+}
+
+/* Small author name styling inside bubble */
+.chat-card .bubble b {
+    display: inline-block;
+    margin-bottom: 4px;
+    font-weight: 700;
+}
+
+/* Footer input area tweaks */
+.chat-card .chat-footer {
+    background: #fff;
+    border-top: 1px solid rgba(0,0,0,0.05);
+}
+
+.chat-card .chat-footer .form-control {
+    min-height: 42px;
+}
+
+/* Ensure high specificity to override Bootstrap if necessary */
+:where(.chat-card) .message-row.sender .bubble,
+:where(.chat-card) .message-row.receiver .bubble {
+    background-clip: padding-box;
+}
+
+/* Responsive tweaks */
+@media (max-width: 576px) {
+    .chat-card .bubble { max-width: 82%; }
+    .chat-card .chat-messages { max-height: 300px; }
 }

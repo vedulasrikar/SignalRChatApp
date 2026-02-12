@@ -5,14 +5,15 @@
              Chatting with @ToUser.UserName
          </div>
          <div class="overflow-auto chat-messages">
-             <ul class="list-group">
+             <ul class="messages-list list-unstyled">
                  @foreach(var message in ToUser.Messages)
                 {
                     var fromUserName = ConnectedUsers.FirstOrDefault(u => u.UserId == message.FromUserId)?.UserName;
-                    <li class="list-group-item d-flex align-items-start message-item">
-                        <img src="/Images/avatar.png" alt="avatar" class="rounded-circle me-3"
+                    var isSentByMe = message.FromUserId == this.FromUserId;
+                    <li class="message-row d-flex align-items-start @(isSentByMe ? "sender" : "receiver")">
+                        <img src="/Images/avatar.png" alt="avatar" class="rounded-circle avatar"
                         style="width: 40px; height:40px"/>
-                        <div>
+                        <div class="bubble">
                             <b>@fromUserName</b>
                             <br />
                             @message.Message
