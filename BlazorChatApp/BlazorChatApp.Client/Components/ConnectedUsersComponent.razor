@@ -9,9 +9,15 @@
             m.FromUserId != this.LogonUserId);
 
             <tr style="cursor: pointer; height: 30px"
-                @key="user.ConnectionId"
-                @onclick="async () => await SelectUser(user.ConnectionId!)">
-                <td>@user.UserName</td>
+                @key="user.UserId"
+                @onclick="async () => await SelectUser(user.UserId!)">
+                <td>
+                    @user.UserName
+                    @if (string.IsNullOrWhiteSpace(user.ConnectionId))
+                    {
+                        <span class="text-muted small ms-2">(Disconnected)</span>
+                    }
+                </td>
                 <td>
                     @if (unreadMessages > 0)
                     {
@@ -45,10 +51,12 @@ else
         StateHasChanged();
     }
 
-    private async Task SelectUser(string? connectionId)
+    private async Task SelectUser(string? userId)
     {
-        var targetUser = ConnectedUsers?.FirstOrDefault(u => u.ConnectionId == connectionId);
-        // Additional logic can be added here as needed
+        if (string.IsNullOrWhiteSpace(userId))
+            return;
+
+        var targetUser = ConnectedUsers?.FirstOrDefault(u => u.UserId == userId);
         if(targetUser is not null)
         {
             targetUser.Messages.ForEach(m => m.Unread = false); // Mark messages as read when user is selected

@@ -100,48 +100,66 @@ else
 
     private void UpdateUserList(List<ConnectedUser> users)
     {
-        // This method can be used to update the list of connected users if needed
-        if (users is not null && users.Count > 0)
+        if (users is null)
+            return;
+
+        // Build a dictionary of incoming users keyed by UserId
+        var incomingByUserId = users
+            .Where(u => !string.IsNullOrWhiteSpace(u.UserId))
+            .ToDictionary(u => u.UserId!, u => u);
+
+        // Update existing users: update info if present, otherwise mark disconnected
+        for (int i = 0; i < connectedUsers.Count; i++)
         {
-            var existingUsersDictionary = connectedUsers.ToDictionary(u => u.ConnectionId?? string.Empty);
-            //Add new users
-            foreach (var user in users)
+            var existing = connectedUsers[i];
+            if (!string.IsNullOrWhiteSpace(existing.UserId) && incomingByUserId.TryGetValue(existing.UserId!, out var incoming))
             {
-                if (!existingUsersDictionary.ContainsKey(user.ConnectionId ?? string.Empty))
-                {
-                    connectedUsers.Add(user); 
-                }
+                // Update existing entry with latest connection id, username and messages
+                existing.ConnectionId = incoming.ConnectionId;
+                existing.UserName = incoming.UserName;
+                existing.Messages = incoming.Messages ?? new List<ChatMessage>();
 
+                // Remove processed incoming so only new users remain
+                incomingByUserId.Remove(existing.UserId!);
             }
-
-            // Keep only the users that are still connected
-            connectedUsers = connectedUsers
-            .Where(u => users.Any(newUser => newUser.ConnectionId == u.ConnectionId)).ToList();
-
-            StateHasChanged();
+            else
+            {
+                // user not currently connected - keep the user but clear connection id to mark offline
+                existing.ConnectionId = null;
+            }
         }
+
+        // Add any new incoming users that weren't in the existing list
+        foreach (var kv in incomingByUserId)
+        {
+            connectedUsers.Add(kv.Value);
+        }
+
+        // Restore selected targetUser by UserId so chat window remains even if user disconnected
+        if (targetUser is not null && !string.IsNullOrWhiteSpace(targetUser.UserId))
+        {
+            targetUser = connectedUsers.FirstOrDefault(u => u.UserId == targetUser.UserId);
+        }
+
+        StateHasChanged();
     }
 
     private async Task ReceiveMessage(string fromUserId, string fromConnectionId, string message)
     {
         // This method can be used to receive messages from other users if needed
-        if(!string.IsNullOrEmpty(fromConnectionId))   
+        // Accept messages even if fromConnectionId is empty: match by UserId as fallback
+        var fromUser = connectedUsers.FirstOrDefault(u => (u.ConnectionId != null && u.ConnectionId == fromConnectionId) || u.UserId == fromUserId);
+        if(fromUser is not null)
         {
-            // Handle the received message and update the UI accordingly
-            var fromUser = connectedUsers.FirstOrDefault(u => u.ConnectionId == fromConnectionId);
-            if(fromUser is not null)
+            fromUser.Messages.Add(new ChatMessage
             {
-                // Add the message to the chat history of the corresponding user
-                fromUser.Messages.Add(new ChatMessage
-                {
-                    FromUserId = fromUserId,
-                    ToUserId = this.userId,
-                    Message = message
-                });
-                await JSRuntime.InvokeVoidAsync("playsound", "/sounds/notification.mp3"); // Play notification sound for incoming message
-                // Update the UI to reflect the new message
-                StateHasChanged();
-            }
+                FromUserId = fromUserId,
+                ToUserId = this.userId,
+                Message = message,
+                Unread = true
+            });
+
+            await JSRuntime.InvokeVoidAsync("playsound", "/sounds/notification.mp3"); // Play notification sound for incoming message
             StateHasChanged();
         }
     }
