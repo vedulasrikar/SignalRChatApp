@@ -13,7 +13,6 @@ namespace ChatContractsLibrary
         public string? Message { get; set; }
 
         public bool? Unread { get; set; } = true;
-       
-
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 }

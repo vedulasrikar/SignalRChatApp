@@ -1,12 +1,18 @@
 ﻿@using ChatContractsLibrary
+@inject IJSRuntime JSRuntime
 @if (ConnectedUsers is not null && ConnectedUsers.Count > 0)
 {
     @foreach (var user in ConnectedUsers)
     {
         @if(user.UserId != this.LogonUserId)
         {
-            var unreadMessages = user.Messages.Count(m => m.Unread == true &&
-            m.FromUserId != this.LogonUserId);
+            // Find the last message in the conversation with this user
+            var lastMessage = user.Messages
+                .Where(m => (m.FromUserId == user.UserId && m.ToUserId == this.LogonUserId) || (m.FromUserId == this.LogonUserId && m.ToUserId == user.UserId))
+                .OrderByDescending(m => m.Timestamp)
+                .FirstOrDefault();
+            // Show notification if the last message is from the other user, is unread, and is to me
+            var showNotification = lastMessage != null && lastMessage.Unread == true && lastMessage.FromUserId == user.UserId && lastMessage.ToUserId == this.LogonUserId;
 
             <tr style="cursor: pointer; height: 30px"
                 @key="user.UserId"
@@ -19,10 +25,10 @@
                     }
                 </td>
                 <td>
-                    @if (unreadMessages > 0)
+                    @if (showNotification)
                     {
                         <div class="unread-indicator">
-                            @unreadMessages
+                            1
                         </div>
                     }
                 </td>
@@ -64,4 +70,21 @@ else
         }
     }
 
+    private async Task ReceiveMessage(string fromUserId, string fromConnectionId, string message)
+{
+    var fromUser = ConnectedUsers.FirstOrDefault(u => (u.ConnectionId != null && u.ConnectionId == fromConnectionId) || u.UserId == fromUserId);
+    if(fromUser is not null)
+    {
+        fromUser.Messages.Add(new ChatMessage
+        {
+            FromUserId = fromUserId,
+            ToUserId = this.LogonUserId,
+            Message = message,
+            Unread = fromUserId != this.LogonUserId // Only mark as unread if not sent by me
+        });
+
+        await JSRuntime.InvokeVoidAsync("playsound", "/sounds/notification.mp3");
+        StateHasChanged();
+    }
+}
 }

@@ -18,7 +18,8 @@ else
                            ToUser="targetUser"
                            ConnectedUsers="@this.connectedUsers"
                            hubConnection="@this.hubConnection"
-                           OnMessageSent="OnMessageSent">
+                           OnMessageSent="OnMessageSent"
+                           OnChatInputFocus="OnChatInputFocus">
             </ChatComponent>
             @if (systemMessages is not null && systemMessages.Count > 0)
             {
@@ -66,13 +67,31 @@ else
     private void OnUserSelected(ConnectedUser toUser)
     {
         this.targetUser = toUser;
+        ClearUnreadCountForUser(toUser.UserId);
     }
     private void OnMessageSent(string toUserId)
     {
-        // Clear unread message count for the selected user
-        connectedUsersComponent?.ClearUnreadMessagCount(toUserId);  
+        ClearUnreadCountForUser(toUserId);
+    }
+    private void OnChatInputFocus(string toUserId)
+    {
+        ClearUnreadCountForUser(toUserId);
     }
 
+    private void ClearUnreadCountForUser(string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return;
+        // Clear unread in the main connectedUsers list (not just in the component instance)
+        var user = connectedUsers.FirstOrDefault(u => u.UserId == userId);
+        if (user != null)
+        {
+            user.Messages.ForEach(m => m.Unread = false);
+            StateHasChanged();
+        }
+        // Also update the component instance for immediate UI update
+        connectedUsersComponent?.ClearUnreadMessagCount(userId);
+    }
 
     private  async Task ConnectToServer(string userId, string userName)
     {
@@ -156,7 +175,7 @@ else
                 FromUserId = fromUserId,
                 ToUserId = this.userId,
                 Message = message,
-                Unread = true
+                Unread = fromUserId != this.userId // Only mark as unread if not sent by me
             });
 
             await JSRuntime.InvokeVoidAsync("playsound", "/sounds/notification.mp3"); // Play notification sound for incoming message

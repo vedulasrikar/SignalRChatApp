@@ -17,6 +17,9 @@
                             <b>@fromUserName</b>
                             <br />
                             @message.Message
+                            <div class="msg-timestamp">
+                                @message.Timestamp.ToLocalTime().ToString("g")
+                            </div>
                         </div>
                     </li>
                 }
@@ -29,7 +32,8 @@
                      placeholder="Type Your Message Here..."
                        @bind="newMessage"
                        @bind:event="oninput"
-                       @onkeydown="HandleKeyPress" />
+                       @onkeydown="HandleKeyPress"
+                       @onfocus="ClearUnreadCount" />
                  <button class="btn btn-primary ms-2" @onclick="SendMessage">Send</button>
              </div>
 
@@ -53,6 +57,9 @@
     [Parameter]
     public EventCallback<string> OnMessageSent { get; set; }
 
+    [Parameter]
+    public EventCallback<string> OnChatInputFocus { get; set; }
+
     private string newMessage = string.Empty;
     private async Task SendMessage()
     {
@@ -63,12 +70,6 @@
             //Send Message to Server
             await hubConnection.InvokeAsync("ForwardMessage", this.FromUserId, ToUser.ConnectionId, newMessage);
 
-            ToUser.Messages.Add(new ChatMessage
-                {
-                    FromUserId = this.FromUserId,
-                    ToUserId = ToUser.UserId,
-                    Message = newMessage
-                });
             newMessage = string.Empty;
             await OnMessageSent.InvokeAsync(ToUser.UserId); // Notify parent component that a message has been sent
         }
@@ -82,4 +83,15 @@
         }
     }
 
+    private async Task ClearUnreadCount()
+    {
+        if (ToUser is not null && !string.IsNullOrWhiteSpace(ToUser.UserId))
+        {
+            await OnMessageSent.InvokeAsync(ToUser.UserId);
+            if (OnChatInputFocus.HasDelegate)
+            {
+                await OnChatInputFocus.InvokeAsync(ToUser.UserId);
+            }
+        }
+    }
 }
